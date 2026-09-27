@@ -1,4 +1,6 @@
 # Homelab deployment of Firecrawl on plexnuc (Fedora, SELinux enforcing).
+# Endpoint http://plexnuc:3002, used by n8n and the hermes agent. No API auth
+# (USE_DB_AUTHENTICATION=false); LLM features are off (no OpenAI key).
 # Deployed by Dockhand as the git stack "firecrawl": repo zagah/firecrawl,
 # branch `homelab`, compose path compose.homelab.yaml.
 #
@@ -6,7 +8,9 @@
 # with firecrawl/firecrawl picks up upstream changes. Local differences:
 #   - prebuilt ghcr.io/firecrawl/* images instead of building from source
 #   - restart: unless-stopped on everything
-#   - api: SELinux label=disable (needed for the fdb-cluster-file volume on Fedora)
+#   - api: SELinux label=disable. With SELinux enforcing, the API's native Rust
+#     module fails to load (ERR_DLOPEN_FAILED ... cannot apply additional memory
+#     protection after relocation)
 #   - FoundationDB (experimental queue backend) parked behind the `fdb` profile;
 #     the queue runs on nuq-postgres
 # Secrets and settings (BULL_AUTH_KEY, POSTGRES_PASSWORD, ...) come from the
