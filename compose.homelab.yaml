@@ -1,0 +1,68 @@
+# Homelab deployment of Firecrawl on plexnuc (Fedora, SELinux enforcing).
+# Deployed by Dockhand as the git stack "firecrawl": repo zagah/firecrawl,
+# branch `homelab`, compose path compose.homelab.yaml.
+#
+# Every service extends upstream's docker-compose.yaml, so syncing this fork
+# with firecrawl/firecrawl picks up upstream changes. Local differences:
+#   - prebuilt ghcr.io/firecrawl/* images instead of building from source
+#   - restart: unless-stopped on everything
+#   - api: SELinux label=disable (needed for the fdb-cluster-file volume on Fedora)
+#   - FoundationDB (experimental queue backend) parked behind the `fdb` profile;
+#     the queue runs on nuq-postgres
+# Secrets and settings (BULL_AUTH_KEY, POSTGRES_PASSWORD, ...) come from the
+# Dockhand stack env. See .env.homelab.example.
+#
+# To build from source instead, replace `image:` + `build: !reset null` with
+# nothing (inheriting upstream's build:). Dockhand would then have to build on
+# plexnuc through Hawser.
+
+name: firecrawl
+
+services:
+  playwright-service:
+    extends: { file: docker-compose.yaml, service: playwright-service }
+    image: ghcr.io/firecrawl/playwright-service:latest
+    build: !reset null
+    restart: unless-stopped
+
+  api:
+    extends: { file: docker-compose.yaml, service: api }
+    image: ghcr.io/firecrawl/firecrawl:latest
+    build: !reset null
+    restart: unless-stopped
+    security_opt:
+      - label=disable
+
+  redis:
+    extends: { file: docker-compose.yaml, service: redis }
+    restart: unless-stopped
+
+  rabbitmq:
+    extends: { file: docker-compose.yaml, service: rabbitmq }
+    restart: unless-stopped
+
+  nuq-postgres:
+    extends: { file: docker-compose.yaml, service: nuq-postgres }
+    image: ghcr.io/firecrawl/nuq-postgres:latest
+    build: !reset null
+    restart: unless-stopped
+    volumes:
+      # Named, so the queue DB survives redeploys (upstream uses an anonymous volume).
+      - nuq-postgres-data:/var/lib/postgresql/data
+
+  foundationdb:
+    extends: { file: docker-compose.yaml, service: foundationdb }
+    profiles: ["fdb"]
+
+  foundationdb-init:
+    extends: { file: docker-compose.yaml, service: foundationdb-init }
+    profiles: ["fdb"]
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  fdb-data:
+  fdb-cluster-file:
+  nuq-postgres-data:
